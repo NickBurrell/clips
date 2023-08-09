@@ -1,7 +1,7 @@
 #ifndef _AST_HPP_
 #define _AST_HPP_
 
-#include "../util/string.hpp"
+#include "../util.hpp"
 
 #include <array>
 #include <memory>
@@ -11,20 +11,24 @@
 namespace cxlisp::ast {
 
 // Arbitrary, can be increased
-constexpr size_t kMaxDepth = 1024;
+constexpr size_t kMaxDepth = 64;
 constexpr size_t kMaxListSize = 1024;
 constexpr size_t kMaxDottedListSize = 1024;
 
 template<size_t Depth=kMaxDepth>
 struct Value {
 
-    union Data {
-        std::string_view atom;
+    constexpr Value() : type(Type::kUnassigned), empty(util::EmptyType{}) {
+        static_assert(Depth > 0, "Depth must be greater than 0");   
+    }
+    union {
+        util::String atom;
         std::array<Value<Depth - 1>, kMaxListSize> list;
         std::array<Value<Depth - 1>, kMaxDottedListSize> dotted_list;
         bool boolean;
         int integer;
         util::String string;
+        util::EmptyType empty;
     };
 
     enum struct Type {
@@ -38,9 +42,8 @@ struct Value {
     };
 
     Type type = Type::kUnassigned;
-    Data value;
 
-    constexpr static auto makeAtom(std::string_view atom) -> Value<Depth> {
+    constexpr static auto makeAtom(util::String atom) -> Value<Depth> {
         Value<Depth> value;
         value.type = Type::kAtom;
         value.value.atom = atom;
