@@ -19,7 +19,7 @@ using ParseResultPair =
     typename std::invoke_result_t<TParser, std::string_view>::value_type;
 
 template <typename TParser>
-using Parser = typename ParseResultPair<TParser>::first_type;
+using Parser = typename ParseResultPair<TParser>::first_type;™
 
 namespace ops {
 template <typename TFunc, typename TParser>
