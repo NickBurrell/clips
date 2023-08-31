@@ -13,11 +13,6 @@ if(PROJECT_IS_TOP_LEVEL OR TEST_INSTALLED_VERSION)
         message(FATAL_ERROR "Requiered config package not found!")
         return() # be strictly paranoid for Template Janitor github action! CK
     endif()
-    if(ENABLE_COVERAGE)
-        if(!MSVC)
-            add_compile_options(--coverage)
-        endif()
-    endif()
 endif()
 
 
