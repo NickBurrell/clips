@@ -19,6 +19,7 @@ TEST_CASE("Parsing strings yields a string", "[parser]") {
 
 TEST_CASE("ValueAllocator works as expected", "[ast]") {
 
-  STATIC_REQUIRE(
-      ValueAllocator{}.allocate<Number>(Number{4}).borrow_mut()->get() == 4);
+  STATIC_REQUIRE(std::get<Number>(ValueAllocator{}.allocate<Number>(Number{4}))
+                     .borrow_mut()
+                     ->get() == 4);
 }

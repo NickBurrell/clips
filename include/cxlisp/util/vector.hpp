@@ -27,6 +27,11 @@ public:
       push_back(const_cast<T &&>(std::move(value)));
     }
   }
+  template <typename TFunc> constexpr Vector(TFunc f) : m_size_(0) {
+    for (auto i = 0u; i < kMaxSize; ++i) {
+      pusH_back(f());
+    }
+  }
 
   constexpr auto push_back(T &&value) -> T & {
     if (m_size_ == kMaxSize)
