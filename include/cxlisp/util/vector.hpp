@@ -3,8 +3,7 @@
 
 #include <array>
 namespace cxlisp::util {
-template <typename TBase, size_t kMaxSize,
-          typename T = std::remove_cv_t<std::remove_pointer_t<TBase>>>
+template <typename TBase, size_t kMaxSize, typename T = std::remove_cv_t<TBase>>
 class Vector {
 public:
   using iterator = typename std::array<T, kMaxSize>::iterator;
@@ -14,6 +13,7 @@ public:
   using const_reference = typename std::array<T, kMaxSize>::const_reference;
 
   constexpr Vector() = default;
+  constexpr Vector(TBase t) { std::fill(m_data_.begin(), m_data_.end(), t); }
 
   template <typename TIter>
   constexpr Vector(TIter begin, const TIter &end) : m_data_({}), m_size_(0) {
@@ -24,7 +24,7 @@ public:
 
   constexpr Vector(std::initializer_list<T> list) : m_size_(0) {
     for (auto &value : list) {
-      push_back(std::move(value));
+      push_back(const_cast<T &&>(std::move(value)));
     }
   }
 
@@ -82,8 +82,8 @@ public:
   constexpr auto back_insert_iter() { return m_data_.begin() + m_size_ - 1; }
 
 private:
-  std::array<T, kMaxSize> m_data_;
-  std::size_t m_size_;
+  std::array<T, kMaxSize> m_data_{};
+  std::size_t m_size_{};
 };
 } // namespace cxlisp::util
 

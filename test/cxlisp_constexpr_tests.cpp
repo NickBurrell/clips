@@ -7,12 +7,18 @@
 
 using namespace cxlisp::util;
 using namespace cxlisp::parser;
+using namespace cxlisp::ast;
 
 using namespace std::literals;
 
 constexpr auto stringParser = parseString();
 
-TEST_CASE("Parsing strings yields a string", "[parser]")
-{
-    STATIC_REQUIRE(stringParser(R"("test")")->first == "test"_cxs);
+TEST_CASE("Parsing strings yields a string", "[parser]") {
+  STATIC_REQUIRE(stringParser(R"("test")")->first == "test"_cxs);
+}
+
+TEST_CASE("ValueAllocator works as expected", "[ast]") {
+
+  STATIC_REQUIRE(
+      ValueAllocator{}.allocate<Number>(Number{4}).borrow_mut()->get() == 4);
 }

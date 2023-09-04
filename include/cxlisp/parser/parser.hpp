@@ -136,13 +136,12 @@ namespace detail {
 template <typename TParser, typename TAcc, typename TFunc>
 constexpr std::pair<TAcc, std::string_view>
 foldl(std::string_view str, TParser p, TAcc acc, TFunc &&f) {
-  for (auto c = str.begin(); c != str.end();) {
-    const auto result = p(c);
+  while (!str.empty()) {
+    const auto result = p(str);
     if (!result)
       return std::make_pair(acc, str);
     acc = f(acc, result->first);
     str = result->second;
-    c = str.begin();
   }
   return std::make_pair(acc, str);
 }
