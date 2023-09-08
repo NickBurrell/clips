@@ -3,6 +3,7 @@
 
 #include "cxlisp/util/empty.hpp"
 #include "cxlisp/util/string.hpp"
+#include "cxlisp/util/type_traits.hpp"
 #include "cxlisp/util/vector.hpp"
 
 #endif /* CXLISP_UTIL_HPP_ */

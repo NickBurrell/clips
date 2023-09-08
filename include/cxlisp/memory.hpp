@@ -1,21 +1,90 @@
 #ifndef CXLISP_MEMORY_HPP
 #define CXLISP_MEMORY_HPP
 
+#include "cxlisp.hpp"
+
 namespace cxlisp::memory {
 
-template <typename, std::size_t> class UniquePointer;
+template <typename> class AllocatorCommon;
+template <typename> struct AllocTraits;
 
-template <typename T, std::size_t kMaxElements> class IFixedAllocator {
-  constexpr virtual UniquePointer<T, kMaxElements> reserve() = 0;
-  constexpr virtual T release(std::size_t) = 0;
-  constexpr virtual void remove(std::size_t) = 0;
+template <typename T, typename TAllocator,
+          typename = typename util::has_type<
+              T, typename AllocTraits<TAllocator>::SupportedAllocTypes>>
+class UniquePointer {
+public:
+  constexpr UniquePointer() = default;
+
+  constexpr UniquePointer(UniquePointer &&lhs) {
+    m_parent_ = lhs.m_parent_;
+    m_alloc_idx_ = lhs.m_alloc_idx_;
+    m_is_populated_ = lhs.m_is_populated_;
+  }
+
+  constexpr UniquePointer(TAllocator &parent, std::size_t idx)
+      : m_is_populated_(true), m_alloc_idx_(idx), m_parent_(parent) {}
+
+  constexpr void populate(T t) {
+    auto new_idx = m_parent_.reserve();
+    m_parent_.insert_at(t, new_idx);
+    m_is_populated_ = true;
+  }
+
+  constexpr const T *borrow() {
+    return m_parent_.template read<T>(m_alloc_idx_);
+  }
+  constexpr T *borrow_mut() {
+    return m_parent_.template read_mut<T>(m_alloc_idx_);
+  };
+
+  constexpr T operator*() {
+    return m_parent_.template release<T>(m_alloc_idx_);
+  }
+
+private:
+  bool m_is_populated_{};
+  std::size_t m_alloc_idx_{};
+  std::optional<TAllocator *> m_parent_{};
+};
+
+template <typename Child> class AllocatorCommon {
+public:
+  template <typename T,
+            typename = util::has_type<
+                T, typename AllocTraits<Child>::SupportedAllocTypes>,
+            typename... Args>
+  [[nodiscard]] constexpr auto allocate(Args... args) {
+    return static_cast<Child *>(this)->template allocate_impl<T>(args...);
+  }
+  template <typename T,
+            typename = util::has_type<
+                T, typename AllocTraits<Child>::SupportedAllocTypes>,
+            typename... Args>
+  [[nodiscard]] constexpr auto reserve() {
+    return static_cast<Child *>(this)->template reserve_impl<T>();
+  }
+  template <typename T,
+            typename = util::has_type<
+                T, typename AllocTraits<Child>::SupportedAllocTypes>>
+  [[nodiscard]] constexpr auto release(std::size_t idx) {
+    return static_cast<Child *>(this)->template release_impl<T>(idx);
+  }
+  template <typename T,
+            typename = util::has_type<
+                T, typename AllocTraits<Child>::SupportedAllocTypes>>
+  constexpr void remove(std::size_t idx) {
+    return static_cast<Child *>(this)->template remove_impl<T>(idx);
+  }
 };
 
 template <typename T, std::size_t kMaxElements>
-class Allocator : IFixedAllocator<T, kMaxElements> {
+class Allocator : public AllocatorCommon<Allocator<T, kMaxElements>> {
 public:
+  typedef std::tuple<T> SupportedAllocTypes;
+
   template <typename... Args>
-  constexpr UniquePointer<T, kMaxElements> allocate(Args... args) {
+  constexpr UniquePointer<T, Allocator<T, kMaxElements>>
+  allocate_impl(Args... args) {
     auto entry_idx = find_next_free();
     if (!entry_idx)
       throw std::runtime_error("no free entries");
@@ -24,15 +93,16 @@ public:
     return UniquePointer{*this, *entry_idx};
   }
 
-  constexpr UniquePointer<T, kMaxElements> reserve() {
+  constexpr UniquePointer<T, Allocator<T, kMaxElements>> reserve_impl() {
     auto entry_idx = find_next_free();
     if (!entry_idx)
       throw std::runtime_error("no free entries");
     m_free_list_[*entry_idx] = false;
-    return UniquePointer<T, kMaxElements>::new_uninhabited(*this, entry_idx);
+    return UniquePointer<T, Allocator<T, kMaxElements>>::new_uninhabited(
+        *this, entry_idx);
   }
 
-  constexpr T release(std::size_t idx) {
+  constexpr T release_impl(std::size_t idx) {
     if (idx > kMaxElements)
       throw std::runtime_error("index out of range");
     if (m_free_list_[idx])
@@ -43,7 +113,7 @@ public:
     return val;
   }
 
-  constexpr void remove(std::size_t idx) {
+  constexpr void remove_impl(std::size_t idx) {
 
     if (idx > kMaxElements)
       throw std::runtime_error("index out of range");
@@ -61,7 +131,8 @@ private:
     return std::nullopt;
   }
 
-  constexpr UniquePointer<T, kMaxElements> insert_at(T val, std::size_t idx) {
+  constexpr UniquePointer<T, Allocator<T, kMaxElements>>
+  insert_at(T val, std::size_t idx) {
     if (idx > kMaxElements)
       throw std::runtime_error("index out of range");
     if (!m_free_list_[idx])
@@ -81,36 +152,12 @@ private:
 
   std::array<T, kMaxElements> m_data_{};
   std::array<bool, kMaxElements> m_free_list_{true};
-  friend class UniquePointer<T, kMaxElements>;
+  friend class UniquePointer<T, Allocator<T, kMaxElements>>;
 };
 
-template <typename T, std::size_t kMaxElements> class UniquePointer {
-public:
-  constexpr UniquePointer(IFixedAllocator<T, kMaxElements> &parent,
-                          std::size_t idx)
-      : m_is_populated_(true), m_alloc_idx_(idx), m_parent_(parent) {}
-
-  constexpr static UniquePointer<T, kMaxElements>
-  new_uninhabited(IFixedAllocator<T, kMaxElements> &parent, std::size_t idx) {
-    auto val = UniquePointer(parent, idx);
-    val.m_is_populated_ = false;
-  }
-
-  constexpr void populate(T t) {
-    auto new_idx = m_parent_.reserve();
-    m_parent_.insert_at(t, new_idx);
-    m_is_populated_ = true;
-  }
-
-  constexpr const T *borrow() { return m_parent_.read(m_alloc_idx_); }
-  constexpr T *borrow_mut() { return m_parent_.read_mut(m_alloc_idx_); };
-
-  constexpr explicit operator T() { return m_parent_.release(m_alloc_idx_); }
-
-private:
-  bool m_is_populated_;
-  std::size_t m_alloc_idx_;
-  IFixedAllocator<T, kMaxElements> &m_parent_;
+template <typename T, std::size_t kMaxSize>
+struct AllocTraits<Allocator<T, kMaxSize>> {
+  typedef std::tuple<T> SupportedAllocTypes;
 };
 
 } // namespace cxlisp::memory
